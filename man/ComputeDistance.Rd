@@ -8,30 +8,54 @@ ComputeDistance(
   seurat_object,
   groupby,
   reduction,
-  method = "edist",
+  method = c("edist", "euclidean", "spearman"),
   verbose = TRUE
 )
 }
 \arguments{
-\item{seurat_object}{An object of class Seurat.}
+\item{seurat_object}{A \code{Seurat} object.}
 
-\item{groupby}{An object of class character. Points to the column in the
-Seurat object's meta data that contains the group labels.}
+\item{groupby}{A character scalar giving the name of a metadata column in
+\code{seurat_object@meta.data} that defines group labels.}
 
-\item{reduction}{An object of class character. The reduction / embedding in
-seurat_object that is used to compute the distance. Can be "pca", "harmony", or any linear dimensionality reduction.}
+\item{reduction}{A character scalar giving the name of a dimensional reduction
+(e.g., \code{"pca"}, \code{"harmony"}) used for distance calculations.}
 
-\item{method}{An object of class character. The distance calculation method, either "euclidean" or "edist".}
+\item{method}{A character scalar specifying the distance metric to use.
+Supported options are \code{"euclidean"}, \code{"edist"} (Energy distance),
+and \code{"spearman"}.}
 
-\item{verbose}{An object of class logical. If TRUE, prints messages.
-Default is TRUE.}
+\item{verbose}{Logical; if \code{TRUE}, prints progress messages.}
 }
 \value{
-Returns an object of class data.frame containing the distance between each pair of groups.
+A symmetric \code{data.frame} (groups \eqn{\times} groups) containing
+pairwise distances between groups.
 }
 \description{
-Computes either the Euclidean or E-distance between groups in a Seurat object, depending on the chosen method.
+Computes pairwise distances between groups (cell states) in a Seurat object
+using one of several distance metrics.
+}
+\details{
+Groups are defined by \code{groupby}. Distances are computed in a specified
+low-dimensional representation (\code{reduction}) that preserves meaningful
+transcriptional geometry (e.g., PCA or Harmony). Depending on \code{method},
+distances are computed between group centroids (Euclidean, Spearman) or between
+full cell distributions (Energy distance).
+
+Visualization-oriented nonlinear embeddings (e.g., UMAP or t-SNE) are not
+recommended for distance-based calculations.
 }
 \examples{
-compdist <- function(seurat_object, groupby = "Diagnosis", reduction = "pca", method = "euclidean", verbose = TRUE)
+# Euclidean distance between group centroids
+ComputeDistance(seurat_object, groupby = "Diagnosis",
+                reduction = "pca", method = "euclidean")
+
+# Energy distance between group distributions
+ComputeDistance(seurat_object, groupby = "Diagnosis",
+                reduction = "pca", method = "edist")
+
+# Spearman distance between group centroids
+ComputeDistance(seurat_object, groupby = "Diagnosis",
+                reduction = "pca", method = "spearman")
+
 }

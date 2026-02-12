@@ -2,10 +2,10 @@
 % Please edit documentation in R/distance_plotting.R
 \name{HeatmapDistance}
 \alias{HeatmapDistance}
-\title{HeatmapDistance
-Generate Heatmaps for Original and Perturbed Matrices
+\title{HeatmapDistance: Generate Heatmaps for Original and Perturbed Matrices
 
-This function generates two heatmaps from two matrices (original and perturbed) and displays them side by side on the same color scale.}
+This function generates two heatmaps from two matrices (original and perturbed)
+and displays them side by side on the same color scale.}
 \usage{
 HeatmapDistance(
   df_original,
@@ -13,7 +13,8 @@ HeatmapDistance(
   custom_palette = NULL,
   title_original = "Original Assay Cluster Similarity Distance",
   title_perturbed = "Perturbed Assay Cluster Similarity Distance",
-  custom_order = NULL
+  custom_order = NULL,
+  col_fun = NULL
 )
 }
 \arguments{
@@ -28,15 +29,20 @@ HeatmapDistance(
 \item{title_perturbed}{The title for the perturbed heatmap. Defaults to "Perturbed Assay Cluster Similarity Distance".}
 
 \item{custom_order}{A character vector specifying the order of clusters for the x and y axes.}
+
+\item{col_fun}{Optional color mapping function created by \code{circlize::colorRamp2()}.
+If provided, \code{HeatmapDistance()} will derive a shared color scale from the
+\code{breaks} and \code{colors} attributes of \code{col_fun} and apply it to both heatmaps.
+When \code{col_fun} is supplied, \code{custom_palette} is ignored.}
 }
 \value{
 A patchwork object combining the two heatmaps.
 }
 \description{
-HeatmapDistance
-Generate Heatmaps for Original and Perturbed Matrices
+HeatmapDistance: Generate Heatmaps for Original and Perturbed Matrices
 
-This function generates two heatmaps from two matrices (original and perturbed) and displays them side by side on the same color scale.
+This function generates two heatmaps from two matrices (original and perturbed)
+and displays them side by side on the same color scale.
 }
 \examples{
 p <- HeatmapDistance(df_edist_observed, df_edist_perturbed) # , custom_order = custom_order

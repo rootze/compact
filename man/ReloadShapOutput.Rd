@@ -4,7 +4,7 @@
 \alias{ReloadShapOutput}
 \title{Reload SHAP Output from Disk}
 \usage{
-ReloadShapOutput(seurat_obj, shap_dir)
+ReloadShapOutput(seurat_obj, shap_dir, enforce_pins = FALSE)
 }
 \arguments{
 \item{seurat_obj}{A \code{Seurat} object to attach SHAP results to.}
