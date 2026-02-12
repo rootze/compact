@@ -638,54 +638,57 @@ LoadAlertSystem <- function(
 LoadAlertSystemPathways <- function(
   path     = NULL,
   genetype = c("mouse", "human"),
-  database  = "MSigDBhallmark"
+  database = "MSigDBhallmark"
 ) {
   genetype <- match.arg(genetype)
-
-  # INTERNAL constant — not user exposed
-  github_base <- "https://raw.githubusercontent.com/rootze/AlertSystem/main/data"
-
   fname <- paste0(database, "_gene_sets_", genetype, ".rds")
 
   ## -----------------------
-  ## CASE 1: LOCAL LOAD
+  ## CASE 1: USER PROVIDED PATH
   ## -----------------------
   if (!is.null(path)) {
-    # If the user gave a full file path, accept it
     if (grepl("\\.rds$", path)) {
       rds_path <- path
     } else {
       rds_path <- file.path(path, fname)
     }
-
     if (!file.exists(rds_path)) {
       stop("Gene set RDS file not found at: ", rds_path)
     }
-
     return(readRDS(rds_path))
   }
 
   ## -----------------------
-  ## CASE 2: AUTO-LOAD FROM GITHUB
+  ## CASE 2: LOAD FROM INSTALLED PACKAGE
   ## -----------------------
-  url <- paste0(
-    sub("/$", "", github_base), "/", fname
-  )
+  # Look for the file in the package's inst/extdata/ directory
+  rds_path <- system.file("extdata", fname, package = "compact", mustWork = FALSE)
 
-  message("LoadAlertSystemPathways: downloading gene sets from:\n  ", url)
-
-  tmp <- tempfile(fileext = ".rds")
-  utils::download.file(url, tmp, mode = "wb", quiet = TRUE)
-
-  obj <- readRDS(tmp)
-
-  if (!is.list(obj) || is.null(names(obj))) {
-    warning("Loaded object is not a named list; check GitHub file format.")
+  if (rds_path != "") {
+    # File found in installed package
+    message("Loading gene sets from installed package")
+    return(readRDS(rds_path))
   }
 
-  obj
-}
+  ## -----------------------
+  ## CASE 3: FALLBACK TO GITHUB (if not in package)
+  ## -----------------------
+  github_base <- "https://raw.githubusercontent.com/smorabit/compact/main/inst/extdata"
+  url <- paste0(github_base, "/", fname)
 
+  message("LoadAlertSystemPathways: downloading gene sets from GitHub:\n  ", url)
+  tmp <- tempfile(fileext = ".rds")
+  tryCatch({
+    utils::download.file(url, tmp, mode = "wb", quiet = TRUE)
+    obj <- readRDS(tmp)
+    if (!is.list(obj) || is.null(names(obj))) {
+      warning("Loaded object is not a named list; check file format.")
+    }
+    return(obj)
+  }, error = function(e) {
+    stop("Failed to download gene sets from GitHub. Error: ", e$message)
+  })
+}
 
 
 ## ================================
