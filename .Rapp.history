@@ -1,4 +1,0 @@
-setwd('/Users/zetristanshi/Documents/GitHub/compact')
-ls()
-library(devtools)
-devtools::document()
