@@ -8,40 +8,43 @@
   seurat_object,
   groupby,
   reduction,
-  sample_correction = FALSE,
+  sample_correct = TRUE,
+  squared = FALSE,
   verbose = TRUE
 )
 }
 \arguments{
-\item{seurat_object}{An object of class Seurat.}
+\item{seurat_object}{A \code{Seurat} object.}
 
-\item{groupby}{An object of class character. Points to the column in the
-Seurat object's meta data that contains the group labels.}
+\item{groupby}{A character scalar giving the name of a metadata column in
+\code{seurat_object@meta.data} that defines group labels.}
 
-\item{reduction}{An object of class character. The reduction / embedding in
-seurat_object that is used to compute the E-distance in. Can be "pca", "harmony", or any linear dimensionality reduction.}
+\item{reduction}{A character scalar giving the name of a dimensional reduction
+(e.g., \code{"pca"}, \code{"harmony"}) used for distance calculations. This should be
+a geometry-preserving representation; visualization-oriented nonlinear embeddings
+(e.g., \code{"umap"}, \code{"tsne"}) are not recommended for distance computation.}
 
-\item{sample_correction}{An object of class logical. If TRUE, the
-E-distances are corrected for sample size. Will make it not a proper
-distance, leads to negative values.}
+\item{sample_correct}{Logical; if \code{TRUE}, uses the sample-size corrected
+(U-statistic) normalization for within-group terms (dividing by \eqn{N(N-1)} rather
+than \eqn{N^2}). Note that Energy distance can be negative due to finite-sample
+estimation noise even though the population quantity is non-negative.}
 
-\item{verbose}{An object of class logical. If TRUE, prints messages.
-Default is TRUE.}
+\item{squared}{Logical; if \code{TRUE}, uses squared Euclidean distances in the
+embedding space (matching \code{metric="sqeuclidean"} in some Python implementations).
+If \code{FALSE} (default), uses Euclidean distances.}
+
+\item{verbose}{Logical; if \code{TRUE}, prints progress messages.}
 }
 \value{
-Returns an object of class data.frame. For each group contains the
-E-test p-value and the E-distance to control group.
+A symmetric \code{data.frame} (groups \eqn{\times} groups) of pairwise
+Energy distances.
 }
 \description{
-Computes pairwise E-distances on a Seurat object.
-Computes E-distance between all groups in a Seurat object in space
-given by reduction.
+Computes pairwise Energy distances between groups (cell states) in a Seurat object.
 }
-\note{
-This function is for internal use and is not exported. Computes pairwise E-distances on a Seurat object.
-Computes E-distance between all groups in a Seurat object in space
-given by reduction.
-}
-\examples{
-    # Add some code illustrating how to use the function
+\details{
+Cells are grouped according to \code{groupby}. For each pair of groups, the empirical
+Energy distance is computed from pairwise distances between individual cell embeddings
+in the specified \code{reduction} space. The resulting output is a symmetric
+groups \eqn{\times} groups distance matrix.
 }

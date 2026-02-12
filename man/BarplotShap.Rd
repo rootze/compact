@@ -26,6 +26,8 @@ with a \code{shap_summary} table stored in \code{seurat_obj@misc$shap}.}
 
 \item{save_plot}{Save the Barplot automatically (default: save_plot = FALSE).}
 
+\item{out_dir}{Output directory for the saved plot. Created if it doesn't exist (default: NULL).}
+
 \item{filename}{Name of the plot file to save (e.g., \code{"barplot_top_shap_DriverGenes.pdf"}).
 File format is determined by the extension (\code{.pdf} or \code{.png}).}
 

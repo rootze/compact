@@ -7,7 +7,9 @@
 FindShapKeyDriver(
   seurat_obj,
   conditions,
-  set_case,
+  set_case = NULL,
+  ident.1 = NULL,
+  ident.2 = NULL,
   top_n = 50,
   max_depth = 4,
   eta = 0.1,
@@ -15,10 +17,11 @@ FindShapKeyDriver(
   nthread = 2,
   variable_genes = NULL,
   out_dir = NULL,
-  mode = "full",
+  mode = c("full", "split", "cv"),
   train_fraction = 0.8,
   nfold = 5,
-  seed = 123
+  seed = 123,
+  expr_layer = "data"
 )
 }
 \arguments{
@@ -26,7 +29,16 @@ FindShapKeyDriver(
 
 \item{conditions}{Column name in \code{seurat_obj@meta.data} indicating the condition labels.}
 
-\item{set_case}{Character. Case label to compare against all other values in \code{conditions}.}
+\item{set_case}{Character. Case label to compare against all other values in \code{conditions}
+(case vs rest mode). Must be \code{NULL} if \code{ident.1} and \code{ident.2} are used.}
+
+\item{ident.1}{Character. First group label in \code{conditions} for pairwise comparison
+(treated as the positive class, label 1). Must be used together with \code{ident.2} and
+\code{set_case} must be \code{NULL}.}
+
+\item{ident.2}{Character. Second group label in \code{conditions} for pairwise comparison
+(treated as the negative class, label 0). Must be used together with \code{ident.1} and
+\code{set_case} must be \code{NULL}.}
 
 \item{top_n}{Integer. Number of top SHAP-ranked genes to return (default: 50).}
 
@@ -38,40 +50,64 @@ FindShapKeyDriver(
 
 \item{nthread}{Integer. Number of CPU threads to use for XGBoost (default: 2).}
 
-\item{variable_genes}{Optional character vector of genes to use. If \code{NULL}, uses \code{VariableFeatures(seurat_obj)}.}
+\item{variable_genes}{Optional character vector of genes to use. If \code{NULL},
+uses \code{VariableFeatures(seurat_obj)}.}
 
 \item{out_dir}{Optional directory to save results. If \code{NULL}, results are not saved to disk.}
 
-\item{mode}{Character. Training mode: \code{"full"}, \code{"split"}, or \code{"cv"} (default: \code{"full"}).}
+\item{mode}{Character. Training mode: \code{"full"}, \code{"split"}, or \code{"cv"}
+(default: \code{"full"}).}
 
-\item{train_fraction}{Numeric. Fraction of cells used for training in \code{"split"} mode (default: 0.8).}
+\item{train_fraction}{Numeric. Fraction of cells used for training in \code{"split"} mode
+(default: 0.8).}
 
 \item{nfold}{Integer. Number of folds for cross-validation (default: 5).}
 
 \item{seed}{Integer. Random seed for reproducibility (default: 123).}
+
+\item{expr_layer}{Character. Expression layer/slot to use when building the feature matrix.
+In Seurat v4 this is passed as \code{slot}; in Seurat v5 this is passed as \code{layer}.
+Common values are \code{"data"}, \code{"counts"}, or \code{"scale.data"} (default: \code{"data"}).}
 }
 \value{
-A modified \code{Seurat} object with SHAP results stored in \code{@misc$shap}, including:
+A modified \code{Seurat} object with SHAP results stored in
+\code{seurat_obj@misc$shap}, including:
 \itemize{
-\item \code{model}: Trained XGBoost model (only in \code{"full"} and \code{"split"} modes)
-\item \code{shap_result}: Raw SHAP decomposition object (only in \code{"full"} and \code{"split"} modes)
-\item \code{shap_long}: Long-format SHAP values (per-cell, per-gene)
-\item \code{shap_summary}: Mean absolute SHAP values per gene
-\item \code{key_drivers}: Top \code{top_n} SHAP-ranked genes
-\item \code{variable_genes}: Genes used in the model
-\item \code{test_auc}: AUC on held-out test set (only in \code{"split"} mode)
-\item \code{auc_per_fold}: Vector of AUC scores per fold (only in \code{"cv"} mode)
-\item \code{mean_auc}: Mean AUC across folds (only in \code{"cv"} mode)
-\item \code{mode}: Training mode used
+\item \code{model}: Trained XGBoost model (only in \code{"full"} and \code{"split"} modes; not stored in \code{"cv"}).
+\item \code{shap_result}: Raw SHAP result object (only in \code{"full"} and \code{"split"} modes; not stored in \code{"cv"}).
+\item \code{shap_long}: Long-format SHAP values (per-cell, per-gene).
+\item \code{shap_summary}: Mean absolute SHAP values per gene.
+\item \code{key_drivers}: Top \code{top_n} SHAP-ranked genes.
+\item \code{variable_genes}: Genes used in the model.
+\item \code{test_auc}: AUC on held-out test set (only in \code{"split"} mode; \code{NA} otherwise).
+\item \code{auc_per_fold}: Vector of AUC scores per fold (only in \code{"cv"} mode).
+\item \code{mean_auc}: Mean AUC across folds (only in \code{"cv"} mode; \code{NA} if AUC not computed).
+\item \code{mode}: Training mode used.
+\item \code{comparison}: A list describing the comparison type and labels, with fields:
+\code{type} (either \code{"case_vs_rest"} or \code{"pairwise"}) and
+\code{set_case} or \code{ident.1}/\code{ident.2} accordingly.
+\item \code{params}: A list of key settings used (e.g., \code{max_depth}, \code{eta}, \code{nrounds}, \code{nthread}, \code{expr_layer}).
+\item \code{package_versions}: A named list of package versions used (e.g., \code{xgboost}, \code{SHAPforxgboost}).
 }
+
+This implementation enforces exact package versions for reproducibility.
+It will stop with an error unless \code{xgboost == "1.7.11.1"} and
+\code{SHAPforxgboost == "0.1.3"} are installed in the active R library.
 }
 \description{
-This function trains an XGBoost classifier to distinguish a specified case group from others
-using gene expression data from a Seurat object. SHAP (SHapley Additive exPlanations) values
-are computed to quantify the contribution of each gene to the model predictions. The top
-SHAP-ranked genes are returned as key driver candidates.
+This function trains an XGBoost classifier to distinguish either:
+\itemize{
+\item a specified case group against all other cells in a metadata column
+(\code{set_case} vs "rest"), or
+\item two specific groups within that column (\code{ident.1} vs \code{ident.2}, pairwise mode),
+}
+using gene expression data from a Seurat object.
 }
 \details{
+SHAP (SHapley Additive exPlanations) values are computed to quantify the
+contribution of each gene to the model predictions. The top SHAP-ranked genes
+are returned as key driver candidates.
+
 Three model training modes are supported via the \code{mode} parameter:
 \itemize{
 \item \code{"full"}: Train on the entire dataset (no test set, no cross-validation).
@@ -79,35 +115,69 @@ Three model training modes are supported via the \code{mode} parameter:
 \item \code{"cv"}: Perform k-fold cross-validation.
 }
 In \code{"split"} mode, test set AUC is computed and stored. In \code{"cv"} mode,
-per-fold AUCs and mean AUC are computed. In \code{"full"} mode, AUC is not computed to avoid overestimation.
+per-fold AUCs and mean AUC are computed. In \code{"full"} mode, AUC is not
+computed to avoid overestimation.
 
-SHAP results and metadata are stored in \code{seurat_obj@misc$shap}. Optionally, results are written to disk
-under \code{out_dir}, with all files documented in an \code{info.txt}.
+SHAP results and metadata are stored in \code{seurat_obj@misc$shap}.
+Optionally, results are written to disk under \code{out_dir}, with all files
+documented in an \code{info.txt}.
+
+Exactly one of the following must be supplied:
+\itemize{
+\item \code{set_case}: for a "case vs rest" comparison, or
+\item \code{ident.1} and \code{ident.2}: for a pairwise comparison between two groups.
+}
 }
 \section{Output Files (if \code{out_dir} is provided)}{
 
 \itemize{
-\item \code{model.txt}: XGBoost model summary (not in \code{"cv"} mode)
-\item \code{shap_result.rds}: SHAP decomposition object (not in \code{"cv"} mode)
-\item \code{shap_summary.txt}: Mean absolute SHAP value per gene
-\item \code{variable_genes.txt}: List of genes used for model training
-\item \code{key_drivers.txt}: Top SHAP-ranked genes
-\item \code{shap_long.rds}: Full SHAP values in long format
-\item \code{auc.txt}: AUC from held-out test set (only in \code{"split"} mode)
-\item \code{auc_per_fold.txt}: AUC per fold (only in \code{"cv"} mode)
-\item \code{info.txt}: Summary of saved outputs
+\item \code{model.txt}: XGBoost model summary (not in \code{"cv"} mode).
+\item \code{model.rds}: Serialized XGBoost model object (not in \code{"cv"} mode).
+\item \code{shap_result.rds}: Output of \code{SHAPforxgboost::shap.values()} (not in \code{"cv"} mode).
+\item \code{shap_summary.txt}: Mean absolute SHAP value per gene.
+\item \code{variable_genes.txt}: List of genes used for model training.
+\item \code{key_drivers.txt}: Top SHAP-ranked genes.
+\item \code{shap_long.rds}: Full SHAP values in long format.
+\item \code{auc.txt}: AUC from held-out test set (only in \code{"split"} mode, if computed).
+\item \code{auc_per_fold.txt}: AUC per fold (only in \code{"cv"} mode, if computed).
+\item \code{info.txt}: Summary of saved outputs.
 }
 }
 
 \examples{
-# Run SHAP analysis in full mode
-seurat_obj <- FindShapKeyDriver(seurat_obj, conditions = "Diagnosis", set_case = "AD", top_n = 30)
+# Case vs rest: AD vs all other diagnoses
+seurat_obj <- FindShapKeyDriver(
+  seurat_obj,
+  conditions = "Diagnosis",
+  set_case = "AD",
+  top_n = 30
+)
 
-# Run in split mode with custom output directory
-seurat_obj <- FindShapKeyDriver(seurat_obj, conditions = "Diagnosis", set_case = "AD",
-                                mode = "split", out_dir = "results/shap/")
+# Case vs rest in split mode with custom output directory
+seurat_obj <- FindShapKeyDriver(
+  seurat_obj,
+  conditions = "Diagnosis",
+  set_case = "AD",
+  mode = "split",
+  out_dir = "results/shap/"
+)
 
-# Run in 5-fold CV mode
-seurat_obj <- FindShapKeyDriver(seurat_obj, conditions = "Diagnosis", set_case = "AD",
-                                mode = "cv", nfold = 5)
+# Case vs rest in 5-fold CV mode
+seurat_obj <- FindShapKeyDriver(
+  seurat_obj,
+  conditions = "Diagnosis",
+  set_case = "AD",
+  mode = "cv",
+  nfold = 5
+)
+
+# Pairwise comparison: AD vs PiD only
+seurat_obj <- FindShapKeyDriver(
+  seurat_obj,
+  conditions = "Diagnosis",
+  ident.1 = "AD",
+  ident.2 = "PiD",
+  mode = "cv",
+  nfold = 5
+)
 }

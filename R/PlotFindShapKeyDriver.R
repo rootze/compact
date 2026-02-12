@@ -1,10 +1,3 @@
-# conda activate MPA
-required_pkgs <- c("xgboost", "SHAPforxgboost", "ggplot2", "data.table", "ggrastr")
-invisible(lapply(required_pkgs, function(pkg) {
-  if (!requireNamespace(pkg, quietly = TRUE)) install.packages(pkg)
-  library(pkg, character.only = TRUE)
-}))
-
 
 #
 #' Plot Bar Chart of Top SHAP Driver Genes
@@ -21,7 +14,7 @@ invisible(lapply(required_pkgs, function(pkg) {
 #' @param top_n Number of top genes to display (default: 20).
 #' @param bar_color Fill color for the bars (default: \code{"steelblue"}).
 #' @param save_plot Save the Barplot automatically (default: save_plot = FALSE).
-#' @param out_dir Output directory for the saved plot. Created if it doesn't exist (default: out_dir = NULL}).
+#' @param out_dir Output directory for the saved plot. Created if it doesn't exist (default: NULL).
 #' @param filename Name of the plot file to save (e.g., \code{"barplot_top_shap_DriverGenes.pdf"}).
 #'        File format is determined by the extension (\code{.pdf} or \code{.png}).
 #' @param width Plot width in inches (default: 8).

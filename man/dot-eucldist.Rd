@@ -7,23 +7,28 @@
 .eucldist(seurat_object, groupby, reduction, verbose = TRUE)
 }
 \arguments{
-\item{seurat_object}{An object of class Seurat.}
+\item{seurat_object}{A \code{Seurat} object.}
 
-\item{groupby}{An object of class character. Points to the column in the
-Seurat object's meta data that contains the group labels.}
+\item{groupby}{A character scalar giving the name of a metadata column in
+\code{seurat_object@meta.data} that defines group labels.}
 
-\item{reduction}{An object of class character. The reduction / embedding in
-seurat_object that is used to compute the means. Can be "pca", "harmony", or any linear dimensionality reduction.}
+\item{reduction}{A character scalar giving the name of a dimensional reduction
+(e.g., \code{"pca"}, \code{"harmony"}) used for distance calculations. This should be
+a geometry-preserving representation; visualization-oriented nonlinear embeddings
+(e.g., \code{"umap"}, \code{"tsne"}) are not recommended for distance computation.}
 
-\item{verbose}{An object of class logical. If TRUE, prints messages.
-Default is TRUE.}
+\item{verbose}{Logical; if \code{TRUE}, prints progress messages.}
 }
 \value{
-Returns an object of class data.frame containing the Euclidean distance between each pair of groups.
+A symmetric \code{data.frame} (groups \eqn{\times} groups) of Euclidean distances
+between group centroids.
 }
 \description{
-Computes the Euclidean distance between the means of two groups in a Seurat object.
+Computes pairwise Euclidean distances between group centroids (mean embedding vectors)
+in a specified low-dimensional representation of a Seurat object.
 }
-\note{
-This function is for internal use and is not exported. Computes the Euclidean distance between the means of two groups in a Seurat object.
+\details{
+For each group defined by \code{groupby}, the centroid is computed as the column-wise
+mean of cell embeddings in \code{reduction}. Euclidean distances are then computed
+between all pairs of group centroids.
 }
