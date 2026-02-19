@@ -67,7 +67,7 @@ BarplotShap <- function(seurat_obj,
   # plot_data <- shap_summary[1:top_n]
   # NOTE shap_summary is a data.table — [1:top_n] works on data.table, but if it's being treated as a data.frame somewhere, it breaks. The real issue is likely that shap_summary came back as a data.frame rather than a data.table (e.g., after being stored in @misc$shap and retrieved).
   plot_data <- head(as.data.frame(shap_summary), top_n)
-  
+
   shap_col <- if ("mean_abs_shap" %in% names(plot_data)) "mean_abs_shap" else "mean_shap"
 
   # Build ggplot
@@ -163,10 +163,19 @@ BeeswarmplotShap <- function(seurat_obj,
   # # Ensure output directory exists
   # if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
 
+  # # Compute top_n variables by mean absolute SHAP
+  # top_genes <- shap_long[, list(mean_shap = mean(abs(value))), by = variable][
+  #   order(-mean_shap)
+  # ]$variable
+
   # Compute top_n variables by mean absolute SHAP
-  top_genes <- shap_long[, list(mean_shap = mean(abs(value))), by = variable][
-    order(-mean_shap)
-  ]$variable
+  dt <- data.table::as.data.table(shap_long)
+  genes <- unique(dt$variable)
+  mean_abs <- vapply(genes, function(g) {
+    mean(abs(dt$value[dt$variable == g]))
+  }, numeric(1))
+  top_genes <- genes[order(-mean_abs)]
+
 
   n_genes <- length(top_genes)
   if (n_genes == 0) stop("shap_long is empty or malformed.")
