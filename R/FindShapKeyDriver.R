@@ -302,7 +302,7 @@ FindShapKeyDriver <- function(
 
   .summarize_shap <- function(shap_long_dt) {
     dt <- data.table::as.data.table(shap_long_dt)
-    summ <- dt[, .(mean_abs_shap = mean(abs(value))), by = variable]
+    summ <- dt[, list(mean_abs_shap = mean(abs(value))), by = variable]
     summ[order(-mean_abs_shap)]
   }
 
