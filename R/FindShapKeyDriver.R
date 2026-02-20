@@ -309,21 +309,30 @@ FindShapKeyDriver <- function(
   # Error in h(simpleError(msg, call)) :
   # error in evaluating the argument 'x' in selecting a method for function 'mean': object 'value' not found
 
-  # NOTE Notes Code below
-  # Same root cause — value not found means the data.table column reference is failing inside .summarize_shap() when called from within the package namespace.
-  # The fix from earlier needs to be applied more carefully. In data.table, even list() can fail if data.table's special evaluation isn't triggered. The safest fix for package code is to avoid non-standard evaluation entirely:
+  # # NOTE Notes .summarize_shap Code Update 1
+  # # Same root cause — value not found means the data.table column reference is failing inside .summarize_shap() when called from within the package namespace.
+  # # The fix from earlier needs to be applied more carefully. In data.table, even list() can fail if data.table's special evaluation isn't triggered. The safest fix for package code is to avoid non-standard evaluation entirely:
+  # .summarize_shap <- function(shap_long_dt) {
+  #   dt <- data.table::as.data.table(shap_long_dt)
+  #   genes <- unique(dt$variable)
+  #   mean_abs <- vapply(genes, function(g) {
+  #     mean(abs(dt$value[dt$variable == g]))
+  #   }, numeric(1))
+  #   summ <- data.table::data.table(variable = genes, mean_abs_shap = mean_abs)
+  #   summ[order(-summ$mean_abs_shap)]
+  # }
+  # # NOTE This avoids data.table's [ non-standard evaluation entirely, using base R column access ($) instead — which is fully namespace-safe inside a package.
+
+  # NOTE way too slow above .summarize_shap Code Update 1
+  # NOTE .summarize_shap Code Update 2
+  # NOTE  The vapply loop iterates over every unique gene one at a time, and for each gene it does a full scan of the entire dt table with dt$variable == g.
   .summarize_shap <- function(shap_long_dt) {
     dt <- data.table::as.data.table(shap_long_dt)
-    genes <- unique(dt$variable)
-    mean_abs <- vapply(genes, function(g) {
-      mean(abs(dt$value[dt$variable == g]))
-    }, numeric(1))
-    summ <- data.table::data.table(variable = genes, mean_abs_shap = mean_abs)
-    summ[order(-summ$mean_abs_shap)]
+    data.table::setDT(dt)
+    summ <- dt[, list(mean_abs_shap = mean(abs(value))), by = "variable"]
+    summ[order(-mean_abs_shap)]
   }
-  # NOTE This avoids data.table's [ non-standard evaluation entirely, using base R column access ($) instead — which is fully namespace-safe inside a package.
 
-  
 
   .comparison_descriptor <- function() {
     if (!is.null(set_case)) {
