@@ -2,6 +2,9 @@
 # Package setup with strict version pinning for SHAP pipeline
 # ------------------------------------------------------------
 
+#' @import data.table
+NULL
+
 # --- STRICTLY pinned (do NOT auto-install) ---
 pinned_pkgs <- list(
   xgboost = "1.7.11.1",
