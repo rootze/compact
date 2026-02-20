@@ -24,6 +24,9 @@ ModulePerturbation(
   layer = "counts",
   slot = "counts",
   assay = "RNA",
+  custom_network = NULL,
+  custom_modules = NULL,
+  custom_weights = NULL,
   wgcna_name = NULL
 )
 }

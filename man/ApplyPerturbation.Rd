@@ -2,7 +2,7 @@
 % Please edit documentation in R/ApplyPerturbation.R
 \name{ApplyPerturbation}
 \alias{ApplyPerturbation}
-\title{ApplyPerturbation}
+\title{Apply In-Silico Perturbation}
 \usage{
 ApplyPerturbation(
   seurat_obj,
@@ -17,21 +17,35 @@ ApplyPerturbation(
 )
 }
 \arguments{
-\item{seurat_obj}{A Seurat object}
+\item{seurat_obj}{A Seurat object containing the dataset.}
 
-\item{exp}{A features by cells matrix containing the observed expression matrix.}
+\item{exp}{A features-by-cells matrix (typically a sparse matrix) containing the observed expression data.}
 
-\item{features}{The selected features to apply the perturbation on.}
+\item{features}{Character vector. The selected features to apply the perturbation on.}
 
-\item{perturb_dir}{A numeric determining the type of perturbation to apply. Negative values for knock-down, positive for knock-in, and 0 for knock-out.}
+\item{perturb_dir}{Numeric. Determines the type of perturbation to apply. Negative values for knock-down, positive for knock-in, and 0 for knock-out.}
 
-\item{slot}{Slot to extract data for aggregation. Default = 'counts'}
+\item{cells_use}{Character vector. Specific cells to apply the perturbation to. If \code{NULL}, defaults to handling internally.}
 
-\item{assay}{Assay in seurat_obj containing expression information.}
+\item{group.by}{Character. Column in \code{seurat_obj@meta.data} used to group cells for modeling.}
+
+\item{layer}{Character. The Seurat v5 layer to extract data from. Default is \code{'counts'}.}
+
+\item{slot}{Character. The Seurat v4 slot to extract data from. Default is \code{'counts'}.}
+
+\item{assay}{Character. The assay in \code{seurat_obj} containing expression information. Default is \code{'RNA'}.}
 }
 \value{
-A dgCMatrix object containing the updated expression matrix with the applied perturbations
+A \code{dgCMatrix} object containing the updated expression matrix with the applied perturbations.
 }
 \description{
-This function applies an in-silico perturbation to selected features in a Seurat object.
+This function applies an in-silico perturbation (knock-out, knock-down, or knock-in)
+to selected features in a Seurat object.
+}
+\details{
+The function models the baseline expression of target features using a Zero-Inflated
+Negative Binomial (ZINB) distribution to capture dropout and overdispersion characteristics
+typical of single-cell RNA-seq data .
+It samples from this distribution, scales the values by \code{perturb_dir}, and updates the
+original expression matrix. Any perturbed counts that fall below zero are strictly bounded to zero.
 }

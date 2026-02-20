@@ -290,15 +290,18 @@ ModulePerturbation <- function(
     n_iters = 3,
     expand_module = 0,
     delta_scale = 0.2,
-    corr_sigma=0.05,
-    n_threads=4,
-    use_velocyto=TRUE,
+    corr_sigma = 0.05,
+    n_threads = 4,
+    use_velocyto = TRUE,
     use_graph_tp = FALSE,
     use_counts_tp = FALSE,
     layer = 'counts',
     slot = 'counts',
     assay = 'RNA',
-    wgcna_name=NULL
+    custom_network = NULL, 
+    custom_modules = NULL,  
+    custom_weights = NULL,
+    wgcna_name = NULL
 ){
 
     # set as active assay if wgcna_name is not given
@@ -332,37 +335,109 @@ ModulePerturbation <- function(
         groups <- unique(as.character(seurat_obj@meta.data[,group.by]))
     }
 
+    if(!is.null(custom_network) & !is.null(custom_modules)){
+        
+        message("Using provided custom network and module table...")
+        
+        # Validate inputs
+        if(!all(c('gene_name', 'module') %in% colnames(custom_modules))){
+            stop("custom_modules must contain columns: 'gene_name' and 'module'")
+        }
+        
+        # Set the network and modules
+        net <- custom_network
+        modules <- custom_modules
+        
+        # Ensure consistency: Filter network to genes present in the module table (optional but safe)
+        valid_genes <- intersect(rownames(net), modules$gene_name)
+        net <- net[valid_genes, valid_genes]
+        modules <- modules[modules$gene_name %in% valid_genes, ]
+        
+    } else {
+        # Standard hdWGCNA Workflow
+        if(is.null(wgcna_name)){ wgcna_name <- seurat_obj@misc$active_wgcna }
+        
+        net <- GetTOM(seurat_obj, wgcna_name)
+        modules <- GetModules(seurat_obj, wgcna_name)
+    }
+
+    # -------------------------------------------------------------------------
+    # Identify Hub Genes for the Target Module
+    # -------------------------------------------------------------------------
+    
+    # Filter for the specific module being perturbed
+    cur_mod_genes <- subset(modules, module == mod)
+    
+    if(nrow(cur_mod_genes) == 0){
+        stop(paste0("Module '", mod, "' not found in the provided module table."))
+    }
+
     # checks 
     # TODO: which checks should go here and which should go inside the functions?
     # it would be nice to do them all here so it errors out immediately.
 
-    # get the TOM:
-    TOM <- GetTOM(seurat_obj, wgcna_name)
+    # get the co-expression network:
+    #net <- GetTOM(seurat_obj, wgcna_name)
 
     # get modules 
-    modules <- GetModules(seurat_obj, wgcna_name)
+    #modules <- GetModules(seurat_obj, wgcna_name)
 
     # get top n hub genes in selected module 
-    hubs <- GetHubGenes(seurat_obj, n=n_hubs, wgcna_name=wgcna_name) %>% 
-        subset(module == mod)
-    hub_genes <- hubs$gene_name
+    # hubs <- GetHubGenes(seurat_obj, n=n_hubs, wgcna_name=wgcna_name) %>% 
+    #     subset(module == mod)
+    # hub_genes <- hubs$gene_name
 
     # get the non-hubs in this module:
-    non_hub_genes <- subset(modules, module == mod & !(gene_name %in% hub_genes)) %>% .$gene_name
+    # non_hub_genes <- subset(modules, module == mod & !(gene_name %in% hub_genes)) %>% .$gene_name
     module_genes <- subset(modules, module == mod) %>% .$gene_name
 
-    print(head(modules))
+     if(!is.null(custom_weights)){
+        
+        if(!(custom_weights %in% colnames(cur_mod_genes))){
+             stop(paste0("Column '", custom_weights, "' not found in custom_modules."))
+        }
+        
+        message(paste0("Ranking hubs using custom weight column: ", custom_weights))
+        
+        # Sort by custom weights (assuming higher = better hub)
+        # Note: If weights can be negative, you might want abs() here. 
+        # For now, let's assume raw value sorting.
+        cur_mod_genes <- cur_mod_genes %>% arrange(desc(!!sym(custom_weights)))
+        hub_genes <- cur_mod_genes$gene_name[1:min(n_hubs, nrow(cur_mod_genes))]
+        
+    } else if(any(grepl("kME", colnames(cur_mod_genes)))){
+        
+        message("Ranking hubs using kME...")
+        hubs <- GetHubGenes(seurat_obj, n=n_hubs, wgcna_name=wgcna_name) %>% 
+            subset(module == mod)
+        hub_genes <- hubs$gene_name
 
-    # Add additional genes to the module? This helps for small modules
-    if(expand_module > 0){
-    
-        cur_kme <- paste0('kME_', mod)
-        expand_genes <- modules %>% subset(module == 'grey') %>% 
-            slice_max(order_by = get(cur_kme), n=expand_module) %>%
-            .$gene_name
+        # Add additional genes to the module? This helps for small modules
+        if(expand_module > 0){
+            cur_kme <- paste0('kME_', mod)
+            expand_genes <- modules %>% subset(module == 'grey') %>% 
+                slice_max(order_by = get(cur_kme), n=expand_module) %>%
+                .$gene_name
 
-        module_genes <- c(module_genes, expand_genes)
+            module_genes <- c(module_genes, expand_genes)
+        }
+    } else {
+        
+        message("No weight column found. Calculating hub genes based on network degree (column sums)...")
+        
+        # Subset network to this module's genes
+        mod_net <- net[cur_mod_genes$gene_name, cur_mod_genes$gene_name]
+        
+        # Calculate connectivity (Degree Centrality)
+        k_con <- colSums(mod_net)
+        
+        # Sort genes by connectivity
+        hub_genes <- names(sort(k_con, decreasing=TRUE))[1:min(n_hubs, length(k_con))]
     }
+    
+    message(paste0("Selected Hubs: ", paste(hub_genes, collapse=", ")))
+
+
 
     # which cells are we selecting to apply the perturbation?
     cells_use <- colnames(seurat_obj)
@@ -407,35 +482,19 @@ ModulePerturbation <- function(
     # Part 2: apply signal propagation throughout this module 
     ###########################################################################
 
-    # get the TOM for the genes in this module
-    cur_TOM <- TOM[module_genes, module_genes]
+    # get the network for the genes in this module
+    cur_net <- net[module_genes, module_genes]
 
     print('Applying signal propagation throughout co-expression network...')
     exp_prop <- ApplyPropagation(
         seurat_obj,
         exp[module_genes,cells_use],
         exp_per[module_genes,cells_use],
-        network = cur_TOM,
+        network = cur_net,
         perturb_dir = perturb_dir,
         delta_scale = delta_scale,
         n_iters = n_iters
     )
-
-    # experimental: apply propagation separately per group
-    # 
-    # exp_prop <- do.call(cbind, lapply(groups, function(cur_group){
-    #     print(cur_group)
-    #     cur_cells <- subset(seurat_obj@meta.data, get(group.by) == cur_group) %>% rownames()
-    #     ApplyPropagation(
-    #         seurat_obj,
-    #         exp[module_genes,cur_cells],
-    #         exp_per[module_genes,cur_cells],
-    #         network = cur_TOM,
-    #         perturb_dir = perturb_dir,
-    #         delta_scale = delta_scale,
-    #         n_iters = n_iters
-    #     )
-    # }))
 
     if(!all(colnames(seurat_obj) %in% cells_use)){
         exp_prop_other <- exp[module_genes,setdiff(colnames(seurat_obj), cells_use)]
@@ -615,7 +674,7 @@ CustomPerturbation <- function(
     # it would be nice to do them all here so it errors out immediately.
 
     # get the TOM:
-    TOM <- GetTOM(seurat_obj, wgcna_name)
+    net <- GetTOM(seurat_obj, wgcna_name)
 
     # get modules 
     modules <- GetModules(seurat_obj, wgcna_name)
@@ -623,7 +682,7 @@ CustomPerturbation <- function(
     if(exclude_grey_genes){
         modules <- subset(modules, module != 'grey') %>% 
             dplyr::mutate(module = droplevels(module))
-        TOM <- TOM[modules$gene_name, modules$gene_name]
+        net <- net[modules$gene_name, modules$gene_name]
     }
 
     # calculate the size of each module 
@@ -637,20 +696,20 @@ CustomPerturbation <- function(
     if(random_connections){
         print(paste0("Randomly selecting", n_connections, " genes ..."))
         hub_genes <- selected_features
-        non_hub_genes <- sample(setdiff(rownames(TOM), hub_genes), n_connections)
+        non_hub_genes <- sample(setdiff(rownames(net), hub_genes), n_connections)
         module_genes <- c(hub_genes, non_hub_genes)
     } else{
         print("Using specific features")
         # what are the top connected genes to our selected genes?
         if(length(selected_features == 1)){
-            cur_order <- rev(order(TOM[selected_features,]))
+            cur_order <- rev(order(net[selected_features,]))
         } else{
 
             # TODO: should this be colSums, or should we calculate median / mean???
             # how similar are the gene sets if we select by sum, median, mean?
-            cur_order <- rev(order(colSums(TOM[selected_features,])))
+            cur_order <- rev(order(colSums(net[selected_features,])))
         }
-        module_genes <- c(selected_features, rownames(TOM)[cur_order][1:n_connections])
+        module_genes <- c(selected_features, rownames(net)[cur_order][1:n_connections])
         hub_genes <- selected_features 
         non_hub_genes <- setdiff(module_genes, hub_genes)
     }
@@ -702,34 +761,18 @@ CustomPerturbation <- function(
     ###########################################################################
 
     # get the TOM for the genes in this module
-    cur_TOM <- TOM[module_genes, module_genes]
+    cur_net <- net[module_genes, module_genes]
 
     print('Applying signal propagation throughout co-expression network...')
     exp_prop <- ApplyPropagation(
         seurat_obj,
         exp[module_genes,cells_use],
         exp_per[module_genes,cells_use],
-        network = cur_TOM,
+        network = cur_net,
         perturb_dir = perturb_dir,
         delta_scale = delta_scale,
         n_iters = n_iters
     )
-
-    # experimental: apply propagation separately per group
-    # 
-    # exp_prop <- do.call(cbind, lapply(groups, function(cur_group){
-    #     print(cur_group)
-    #     cur_cells <- subset(seurat_obj@meta.data, get(group.by) == cur_group) %>% rownames()
-    #     ApplyPropagation(
-    #         seurat_obj,
-    #         exp[module_genes,cur_cells],
-    #         exp_per[module_genes,cur_cells],
-    #         network = cur_TOM,
-    #         perturb_dir = perturb_dir,
-    #         delta_scale = delta_scale,
-    #         n_iters = n_iters
-    #     )
-    # }))
 
     if(!all(colnames(seurat_obj) %in% cells_use)){
         exp_prop_other <- exp[module_genes,setdiff(colnames(seurat_obj), cells_use)]

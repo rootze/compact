@@ -97,7 +97,8 @@
 
 
 
-#' @title HeatmapDistance: Generate Heatmaps for Original and Perturbed Matrices
+#' HeatmapDistance: 
+#' Generate Heatmaps for Original and Perturbed Matrices
 #'
 #' This function generates two heatmaps from two matrices (original and perturbed)
 #' and displays them side by side on the same color scale.

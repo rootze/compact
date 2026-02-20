@@ -2,10 +2,8 @@
 % Please edit documentation in R/distance_plotting.R
 \name{HeatmapDistance}
 \alias{HeatmapDistance}
-\title{HeatmapDistance: Generate Heatmaps for Original and Perturbed Matrices
-
-This function generates two heatmaps from two matrices (original and perturbed)
-and displays them side by side on the same color scale.}
+\title{HeatmapDistance:
+Generate Heatmaps for Original and Perturbed Matrices}
 \usage{
 HeatmapDistance(
   df_original,
@@ -39,8 +37,6 @@ When \code{col_fun} is supplied, \code{custom_palette} is ignored.}
 A patchwork object combining the two heatmaps.
 }
 \description{
-HeatmapDistance: Generate Heatmaps for Original and Perturbed Matrices
-
 This function generates two heatmaps from two matrices (original and perturbed)
 and displays them side by side on the same color scale.
 }

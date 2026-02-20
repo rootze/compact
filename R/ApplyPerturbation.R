@@ -1,20 +1,31 @@
 
-#' ApplyPerturbation
+#' Apply In-Silico Perturbation
 #'
-#' This function applies an in-silico perturbation to selected features in a Seurat object.
+#' This function applies an in-silico perturbation (knock-out, knock-down, or knock-in) 
+#' to selected features in a Seurat object.
 #' 
-#' @return A dgCMatrix object containing the updated expression matrix with the applied perturbations
-#' 
-#' @param seurat_obj A Seurat object
-#' @param exp A features by cells matrix containing the observed expression matrix.
-#' @param features The selected features to apply the perturbation on.
-#' @param perturb_dir A numeric determining the type of perturbation to apply. Negative values for knock-down, positive for knock-in, and 0 for knock-out.
-#' @param slot Slot to extract data for aggregation. Default = 'counts'
-#' @param assay Assay in seurat_obj containing expression information.
+#' @param seurat_obj A Seurat object containing the dataset.
+#' @param exp A features-by-cells matrix (typically a sparse matrix) containing the observed expression data.
+#' @param features Character vector. The selected features to apply the perturbation on.
+#' @param perturb_dir Numeric. Determines the type of perturbation to apply. Negative values for knock-down, positive for knock-in, and 0 for knock-out.
+#' @param cells_use Character vector. Specific cells to apply the perturbation to. If \code{NULL}, defaults to handling internally.
+#' @param group.by Character. Column in \code{seurat_obj@meta.data} used to group cells for modeling.
+#' @param layer Character. The Seurat v5 layer to extract data from. Default is \code{'counts'}.
+#' @param slot Character. The Seurat v4 slot to extract data from. Default is \code{'counts'}.
+#' @param assay Character. The assay in \code{seurat_obj} containing expression information. Default is \code{'RNA'}.
 #' 
 #' @details 
+#' The function models the baseline expression of target features using a Zero-Inflated 
+#' Negative Binomial (ZINB) distribution to capture dropout and overdispersion characteristics 
+#' typical of single-cell RNA-seq data . 
+#' It samples from this distribution, scales the values by \code{perturb_dir}, and updates the 
+#' original expression matrix. Any perturbed counts that fall below zero are strictly bounded to zero.
 #'
+#' @return A \code{dgCMatrix} object containing the updated expression matrix with the applied perturbations.
+#' 
 #' @import Seurat
+#' @importFrom Matrix Matrix
+#' @importFrom utils txtProgressBar setTxtProgressBar
 #' @export
 ApplyPerturbation <- function(
     seurat_obj,
@@ -23,7 +34,6 @@ ApplyPerturbation <- function(
     perturb_dir,
     cells_use=NULL,
     group.by = NULL,
-   # group_name = NULL,
     layer = 'counts',
     slot = 'counts',
     assay = 'RNA'
@@ -128,6 +138,9 @@ ApplyPerturbation <- function(
         sim_data <- sim_data[,colnames(exp_hubs)]
 
         # is this a knock-in or knock-down?
+        #
+        # <TODO> we need to handle the case where perturb_dir is a decimal
+        # just need to round the results so it remains a valid counts matrix
         sim_data <- sim_data * perturb_dir
 
         # apply the perturbation to the expression matrix

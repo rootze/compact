@@ -15,7 +15,7 @@
         "ERROR: Required package '%s' not installed.\nPlease install version %s",
         pkg, pinned_pkgs[[pkg]]
       ))
-      stop(sprintf(
+      warning(sprintf(
         "Package '%s' version %s is required but not installed.",
         pkg, pinned_pkgs[[pkg]]
       ))
@@ -23,7 +23,7 @@
     
     installed <- as.character(packageVersion(pkg))
     if (!identical(installed, pinned_pkgs[[pkg]])) {
-      stop(sprintf(
+      warning(sprintf(
         "Package version mismatch for '%s': required %s but found %s.\nPlease install the exact version.",
         pkg, pinned_pkgs[[pkg]], installed
       ))

@@ -2,7 +2,7 @@
 % Please edit documentation in R/ApplyPropagation.R
 \name{ApplyPropagation}
 \alias{ApplyPropagation}
-\title{ApplyPropagation}
+\title{Propagate In-Silico Perturbation Signal Through a Gene Network}
 \usage{
 ApplyPropagation(
   seurat_obj,
@@ -15,19 +15,39 @@ ApplyPropagation(
 )
 }
 \arguments{
-\item{seurat_obj}{A Seurat object}
+\item{seurat_obj}{A Seurat object containing the dataset.}
 
-\item{exp}{A features by cells matrix containing the observed expression matrix.}
+\item{exp}{A features-by-cells matrix containing the baseline (unperturbed) observed expression data.}
 
-\item{exp_per}{A features by cells matrix containing the perturbation results from ApplyPerturbation.}
+\item{exp_per}{A features-by-cells matrix containing the initial perturbation results (e.g., output from \code{ApplyPerturbation}).}
 
-\item{network}{A gene-gene network to apply the signal propagation.}
+\item{network}{A gene-by-gene matrix representing the network structure (e.g., a Topological Overlap Matrix or gene regulatory network) used to route the signal.}
 
-\item{n_iters}{The number of times to apply the signal propagation.}
+\item{perturb_dir}{Numeric. The direction and magnitude of the original perturbation, used to extract the sign for propagation scaling.}
+
+\item{n_iters}{Numeric/Integer. The number of iterative steps to apply the signal propagation. Default is \code{3}.}
+
+\item{delta_scale}{Numeric. A penalization/dampening factor applied to the delta matrix at each iteration to prevent biologically unrealistic exponential explosions in expression values. Default is \code{0.2}.}
 }
 \value{
-A dgCMatrix object containing the updated expression matrix with the applied perturbations
+A matrix (or \code{dgCMatrix}) containing the fully updated expression
+matrix representing the global cell state after the perturbation signal has
+propagated through the network.
 }
 \description{
-This function applies an in-silico perturbation to selected features in a Seurat object.
+This function models the downstream secondary effects of an in-silico perturbation
+by propagating the initial expression changes through a gene-gene co-expression
+or regulatory network.
+}
+\details{
+The function calculates the initial difference (\code{delta}) between the perturbed
+and baseline expression matrices. Over \code{n_iters} iterations, this \code{delta}
+is multiplied by the gene-gene \code{network} matrix via dot product .
+This mathematical diffusion simulates how a change in a hub gene ripples out to its
+connected targets.
+
+To maintain stability, the propagated signal is penalized at each step by the
+\code{delta_scale} parameter, and total expression is strictly floored at 0 to
+prevent negative read counts. The final matrix is rounded to represent valid
+count data.
 }

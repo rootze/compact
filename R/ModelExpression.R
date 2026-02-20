@@ -66,7 +66,7 @@ ModelZINB <- function(
 #' 
 #' @return A numeric vector of simulated expression data based on a ZINB model
 #' 
-#' @param model
+#' @param model a model object
 #' @param ncells number of cells to simulate expression values for. By default will simulate data for each cell in the input dataset.
 #'
 #' @import VGAM

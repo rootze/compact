@@ -17,14 +17,14 @@ required_pkgs <- c("ggplot2", "data.table", "ggrastr")
 # Enforce versions (fail fast, no auto-install)
 for (pkg in names(pinned_pkgs)) {
   if (!requireNamespace(pkg, quietly = TRUE)) {
-    stop(sprintf(
+    warning(sprintf(
       "Required package '%s' not installed.\nPlease install version %s in this conda env.",
       pkg, pinned_pkgs[[pkg]]
     ))
   }
   installed <- as.character(packageVersion(pkg))
   if (!identical(installed, pinned_pkgs[[pkg]])) {
-    stop(sprintf(
+    warning(sprintf(
       "Package version mismatch for '%s': required %s but found %s",
       pkg, pinned_pkgs[[pkg]], installed
     ))

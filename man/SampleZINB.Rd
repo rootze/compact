@@ -7,6 +7,8 @@
 SampleZINB(model, yobs, ncells = NULL)
 }
 \arguments{
+\item{model}{a model object}
+
 \item{ncells}{number of cells to simulate expression values for. By default will simulate data for each cell in the input dataset.}
 }
 \value{

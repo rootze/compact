@@ -338,6 +338,7 @@ embArrows <- function(embedding, transition_matrix, knn_graph, scale = 1, thresh
 #' measure alignment between a cell's vector and those of its neighbors.
 #' Weighted coherence accounts for edge weights in the neighborhood graph
 #' (e.g. from SNN graphs).
+#' @export
 VectorFieldCoherence <- function(
     seurat_obj,
     perturbation_name,
