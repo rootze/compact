@@ -168,13 +168,20 @@ BeeswarmplotShap <- function(seurat_obj,
   #   order(-mean_shap)
   # ]$variable
 
+  # # Compute top_n variables by mean absolute SHAP
+  # dt <- data.table::as.data.table(shap_long)
+  # genes <- unique(dt$variable)
+  # mean_abs <- vapply(genes, function(g) {
+  #   mean(abs(dt$value[dt$variable == g]))
+  # }, numeric(1))
+  # top_genes <- genes[order(-mean_abs)]
+
   # Compute top_n variables by mean absolute SHAP
   dt <- data.table::as.data.table(shap_long)
-  genes <- unique(dt$variable)
-  mean_abs <- vapply(genes, function(g) {
-    mean(abs(dt$value[dt$variable == g]))
-  }, numeric(1))
-  top_genes <- genes[order(-mean_abs)]
+  data.table::setDT(dt)
+  summ <- dt[, list(mean_abs_shap = mean(abs(value))), by = "variable"]
+  summ <- summ[order(-mean_abs_shap)]
+  top_genes <- summ$variable
 
 
   n_genes <- length(top_genes)
@@ -189,8 +196,10 @@ BeeswarmplotShap <- function(seurat_obj,
 
   top_genes <- top_genes[1:top_n]
 
-  # Subset and set factor order
-  shap_top <- shap_long[variable %in% top_genes]
+  # # Subset and set factor order
+  # shap_top <- shap_long[variable %in% top_genes]
+  shap_top <- dt[get("variable") %in% top_genes] # NOTE Changed shap_long[variable %in% top_genes] to dt[get("variable") %in% top_genes] — get() forces standard evaluation of the column name string, avoiding NSE
+
   # shap_top[, variable := factor(variable, levels = rev(top_genes))]
   shap_top[, variable := factor(variable, levels = top_genes)]
 
