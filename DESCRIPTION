@@ -27,4 +27,10 @@ Imports:
     SHAPforxgboost (>= 0.1.3),
     ggplot2,
     data.table,
-    ggrastr
+    ggrastr,
+    pbapply,
+    patchwork,
+    rdist,
+    reshape2,
+    rlang,
+    S4Vectors
