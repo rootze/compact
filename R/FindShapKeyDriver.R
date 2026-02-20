@@ -195,10 +195,18 @@ FindShapKeyDriver <- function(
 ) {
 
 
-  require(Seurat)
-  require(xgboost)
-  require(SHAPforxgboost)
-  require(data.table)
+  # require(Seurat)
+  if (!requireNamespace("Seurat", quietly = TRUE)) stop("Seurat not installed", call.=FALSE)
+
+  # require(xgboost)
+  if (!requireNamespace("xgboost", quietly = TRUE)) stop("xgboost not installed", call.=FALSE)
+
+  # require(SHAPforxgboost)
+  if (!requireNamespace("SHAPforxgboost", quietly = TRUE)) stop("SHAPforxgboost not installed", call.=FALSE)
+
+  # require(data.table)
+  if (!requireNamespace("data.table", quietly = TRUE)) stop("data.table not installed", call.=FALSE)
+
 
   # =========================
   # HARD version requirements
@@ -264,20 +272,36 @@ FindShapKeyDriver <- function(
   # =========================
   .msg <- function(...) message(...)
 
+# # NOTE code that work but have problems
+  # # Two problems:
+  # # 1. formals() guessing is exactly what’s failing in your package build (hence you still see the “slot deprecated” warning).
+  # # 2. as.matrix(mat) densifies everything → example: 1.3 GiB allocation warning.
+
+  # .get_expr_mat <- function(obj, features, layer = "data") {
+  #   fn <- Seurat::GetAssayData
+  #   use_layer <- "layer" %in% names(formals(fn))  # SeuratObject v5+
+  #
+  #   mat <- if (use_layer) {
+  #     Seurat::GetAssayData(obj, layer = layer)
+  #   } else {
+  #     Seurat::GetAssayData(obj, slot  = layer)
+  #   }
+  #
+  #   mat <- mat[features, , drop = FALSE]
+  #   # xgboost wants numeric matrix; t() of sparse can be awkward => densify after subset
+  #   X <- t(as.matrix(mat))  # cells x genes
+  #   storage.mode(X) <- "double"
+  #   X
+  # }
   .get_expr_mat <- function(obj, features, layer = "data") {
-    fn <- Seurat::GetAssayData
-    use_layer <- "layer" %in% names(formals(fn))  # SeuratObject v5+
-
-    mat <- if (use_layer) {
-      Seurat::GetAssayData(obj, layer = layer)
-    } else {
-      Seurat::GetAssayData(obj, slot  = layer)
-    }
-
+    mat <- tryCatch(
+      Seurat::GetAssayData(obj, layer = layer),
+      error = function(e) Seurat::GetAssayData(obj, slot = layer)
+    )
     mat <- mat[features, , drop = FALSE]
-    # xgboost wants numeric matrix; t() of sparse can be awkward => densify after subset
-    X <- t(as.matrix(mat))  # cells x genes
-    storage.mode(X) <- "double"
+
+    # keep sparse: cells x genes
+    X <- Matrix::t(mat)
     X
   }
 
@@ -290,12 +314,47 @@ FindShapKeyDriver <- function(
   #   shap_result <- SHAPforxgboost::shap.values(model, X_train = X_eval)
   #   SHAPforxgboost::shap.prep(shap_contrib = shap_result$shap_score, X_train = X_eval)
   # }
+
+  # .compute_shap <- function(model, X_eval) {
+  #   shap_result <- SHAPforxgboost::shap.values(model, X_train = X_eval)
+  #   shap_long <- SHAPforxgboost::shap.prep(
+  #     shap_contrib = shap_result$shap_score,
+  #     X_train      = X_eval
+  #   )
+  #   list(shap_result = shap_result, shap_long = shap_long)
+  # }
+
+  # .compute_shap <- function(model, X_eval) {
+  #   shap_result <- SHAPforxgboost::shap.values(model, X_train = X_eval)
+  #   shap_long <- SHAPforxgboost::shap.prep(
+  #     shap_contrib = shap_result$shap_score,
+  #     X_train      = X_eval
+  #   )
+  #
+  #   # FORCE data.table class (package-safe)
+  #   shap_long <- data.table::as.data.table(shap_long)
+  #
+  #   # Defensive: normalize column name if SHAPforxgboost ever changes it
+  #   if (!("value" %in% names(shap_long)) && ("phi" %in% names(shap_long))) {
+  #     data.table::setnames(shap_long, "phi", "value")
+  #   }
+  #
+  #   list(shap_result = shap_result, shap_long = shap_long)
+  # }
   .compute_shap <- function(model, X_eval) {
-    shap_result <- SHAPforxgboost::shap.values(model, X_train = X_eval)
+    X_eval_dense <- as.matrix(X_eval)
+    storage.mode(X_eval_dense) <- "double"
+
+    shap_result <- SHAPforxgboost::shap.values(model, X_train = X_eval_dense)
     shap_long <- SHAPforxgboost::shap.prep(
       shap_contrib = shap_result$shap_score,
-      X_train      = X_eval
+      X_train      = X_eval_dense
     )
+    shap_long <- data.table::as.data.table(shap_long)
+
+    if (!("value" %in% names(shap_long)) && ("phi" %in% names(shap_long))) {
+      data.table::setnames(shap_long, "phi", "value")
+    }
     list(shap_result = shap_result, shap_long = shap_long)
   }
 
@@ -326,11 +385,24 @@ FindShapKeyDriver <- function(
   # NOTE way too slow above .summarize_shap Code Update 1
   # NOTE .summarize_shap Code Update 2
   # NOTE  The vapply loop iterates over every unique gene one at a time, and for each gene it does a full scan of the entire dt table with dt$variable == g.
+  # .summarize_shap <- function(shap_long_dt) {
+  #   dt <- data.table::as.data.table(shap_long_dt)
+  #   data.table::setDT(dt)
+  #   summ <- dt[, list(mean_abs_shap = mean(abs(value))), by = "variable"]
+  #   summ[order(-mean_abs_shap)]
+  # }
+  # NOTE .summarize_shap Code Update 3 -- all above not working in packages but work locally
   .summarize_shap <- function(shap_long_dt) {
     dt <- data.table::as.data.table(shap_long_dt)
-    data.table::setDT(dt)
-    summ <- dt[, list(mean_abs_shap = mean(abs(value))), by = "variable"]
-    summ[order(-mean_abs_shap)]
+
+    if (!all(c("variable", "value") %in% names(dt))) {
+      stop("shap_long missing columns variable/value. Found: ",
+           paste(names(dt), collapse = ", "), call. = FALSE)
+    }
+
+    summ <- dt[, list(mean_abs_shap = mean(abs(get("value")))), by = "variable"]
+    data.table::setorder(summ, -mean_abs_shap)
+    summ
   }
 
 
